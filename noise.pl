@@ -1,35 +1,53 @@
 #!/usr/bin/perl
-# Usage: "perl sound.pl | aplay -f dat"
-use Data::Dumper;
+
 use strict;
-my $PI = 3.1415926;
-my $A = 32000; # Max amplitude is 32768
+use Audio::PortAudio;
+
 my $sample_rate = 48000;
-my $n_channels = 2; # 2=stereo
-my $increment = $n_channels * (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
+my $increment = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
+my $pi = 3.14159265358979323846;
+
+my $api = Audio::PortAudio::default_host_api();
+my $device  = $api->default_output_device;
+
+my $stream = $device->open_write_stream( {
+    channel_count => 1,
+  },
+  $sample_rate,
+  10, # some sort of buffer size?
+  0
+);
 
 sub beep {
-my ($freq) = @_;
-my $t = 0;
-while (1) {
-  $t += $increment; # Time in seconds
-  my $signal_left = $A * sin($freq * 2 * $PI * $t) * $t;
-  my $signal_right = $A * sin($freq * 2 * $PI * $t) * $t;
-  # pack("v", ...) generates string in 16-bit little-endian format
-  my $signal_left_pack = pack("v", $signal_left) . "\0\0";
-  my $signal_right_pack = "\0\0" . pack("v", $signal_right);
-  print $signal_left_pack;
-  print $signal_right_pack;
-  if ($t>1) {
-    # Exit after 1 second
-    return;
-  }
-}
+  my ($freq, $length) = @_;
+  my $sample_count = $length * $sample_rate;
+  my $sine = pack "f*", map {
+    sin( $increment * $pi * $_ * 2 * $freq ) * (1 - ($_ / $sample_count))
+  } 0 .. $sample_count;
+  $stream->write($sine);
 }
 
-my $a_freq = 440; # Frequency in Hertz (eg: 440 Hz is 'A' note)
-my $b_freq = 523.25;
-beep($a_freq);
-beep($b_freq);
-beep($a_freq);
-beep($b_freq);
+my $a3 = 220; # Frequency in Hertz (eg: 440 Hz is 'A' note)
+my $b3 = 246.94;
+my $a4 = 440; # Frequency in Hertz (eg: 440 Hz is 'A' note)
+my $b4 = 523.25;
+
+while(1) {
+  map { beep($_, 0.1) }
+    $a4,
+    $b4,
+    $a4,
+    $b4,
+    $a3,
+    $b3,
+    $a3,
+    $b3;
+  
+  # beep($a3,0.1);
+  # beep($b3,0.1);
+  # beep($a3,0.1);
+  # beep($b3,0.1);
+  # beep($a3,0.1);
+  # beep($b3,0.1);
+}
+
