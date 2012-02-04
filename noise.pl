@@ -2,6 +2,7 @@
 
 use strict;
 use Audio::PortAudio;
+use Data::Printer;
 
 my $sample_rate = 48000;
 my $increment = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
@@ -14,11 +15,9 @@ my $stream = $device->open_write_stream( {
     channel_count => 1,
   },
   $sample_rate,
-  10, # some sort of buffer size?
+  400, # some sort of buffer size?
   0
 );
-
-use Coro::Generator;
 
 # Note => Frequency (Hz)
 my %note = (
@@ -175,6 +174,72 @@ sub beep {
   } 0 .. $sample_count;
   $stream->write($sine);
 }
+
+use Coro::Generator;
+
+sub play {
+  my $gen = shift;
+  while (1) {
+    my $raw_sample = '';
+    for(1..100) {
+      my $sample = $gen->();
+      if($sample > 1 || $sample < -1) {
+        print "CLIP: $sample\n";
+        $sample = $sample > 1 ? 1 : -1;
+      }
+      # print "Sample: $sample\n";
+      return unless defined $sample; # undef = end
+      $raw_sample .= pack "f*", $sample;
+    }
+    print "Sending sample...";
+    $stream->write($raw_sample);
+    print "sent.\n";
+  }
+}
+
+sub note_gen {
+  my ($freq, $length, $volume) = @_;
+  $volume ||= 0.9;
+  my $sample_count = $length * $sample_rate;
+  my $current_sample = 0;
+  return generator {
+    while ($current_sample < $sample_count) {
+      my $sample = sin( $increment * $pi * $current_sample * 2 * $freq ) * (1 - ($current_sample / $sample_count)) * $volume;
+      yield($sample);
+      $current_sample++;
+    }
+    print "Sending undef\n";
+    yield(undef) while 1;
+  };
+}
+
+use List::Util qw( sum );
+use List::MoreUtils qw( none );
+
+sub combine_gen {
+  my (@gens) = @_;
+  return generator {
+    while(1) {
+      my @samples = map { $_->() } @gens;
+      if(none { defined } @samples) {
+        yield(undef) while 1;
+      }
+      my $sample = sum @samples;
+      yield($sample);
+    }
+  };
+}
+
+my $c = note_gen($note{'C4'}, 0.5, 0.3);
+my $e = note_gen($note{'E4'}, 0.5, 0.3);
+my $g = note_gen($note{'G4'}, 0.5, 0.3);
+
+my $chord = combine_gen($c, $e, $g);
+
+play($chord);
+play($chord);
+play($chord);
+exit;
 
 my $a3 = 220; # Frequency in Hertz (eg: 440 Hz is 'A' note)
 my $b3 = 246.94;
