@@ -2,10 +2,12 @@
 
 use strict;
 use Audio::PortAudio;
-use Data::Printer;
+use Coro::Generator;
+use List::Util qw( sum );
+use List::MoreUtils qw( none );
 
 my $sample_rate = 48000;
-my $increment = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
+my $time_step = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
 my $pi = 3.14159265358979323846;
 
 my $api = Audio::PortAudio::default_host_api();
@@ -165,18 +167,7 @@ my %note = (
   'Eb8' => 4978.03,
 );
 
-sub beep {
-  my ($freq, $length, $volume) = @_;
-  $volume ||= 0.9;
-  my $sample_count = $length * $sample_rate;
-  my $sine = pack "f*", map {
-    sin( $increment * $pi * $_ * 2 * $freq ) * (1 - ($_ / $sample_count)) * $volume
-  } 0 .. $sample_count;
-  $stream->write($sine);
-}
-
-use Coro::Generator;
-
+# Play a sequence until we get an undef
 sub play {
   my $gen = shift;
   while (1) {
@@ -191,83 +182,69 @@ sub play {
       return unless defined $sample; # undef = end
       $raw_sample .= pack "f*", $sample;
     }
-    print "Sending sample...";
+    # print "Sending sample block...";
     $stream->write($raw_sample);
-    print "sent.\n";
+    # print "sent.\n";
   }
 }
 
-sub note_gen {
+sub sine_gen {
   my ($freq, $length, $volume) = @_;
   $volume ||= 0.9;
   my $sample_count = $length * $sample_rate;
   my $current_sample = 0;
   return generator {
     while ($current_sample < $sample_count) {
-      my $sample = sin( $increment * $pi * $current_sample * 2 * $freq ) * (1 - ($current_sample / $sample_count)) * $volume;
+      my $sample = sin( $time_step * $pi * $current_sample * 2 * $freq ) * (1 - ($current_sample / $sample_count)) * $volume;
       yield($sample);
       $current_sample++;
     }
-    print "Sending undef\n";
-    yield(undef) while 1;
+    yield(undef);
+    $current_sample = 0; # begin again!
+    # print "Sending undef\n";
+    # yield(undef) while 1;
   };
 }
-
-use List::Util qw( sum );
-use List::MoreUtils qw( none );
 
 sub combine_gen {
   my (@gens) = @_;
   return generator {
-    while(1) {
-      my @samples = map { $_->() } @gens;
-      if(none { defined } @samples) {
-        yield(undef) while 1;
-      }
+    my (@g) = @gens;
+    my @samples = map { $_->() } @g;
+    if(none { defined } @samples) {
+      yield(undef); # we're done
+    } else {
       my $sample = sum @samples;
       yield($sample);
     }
   };
 }
 
-my $c = note_gen($note{'C4'}, 0.5, 0.3);
-my $e = note_gen($note{'E4'}, 0.5, 0.3);
-my $g = note_gen($note{'G4'}, 0.5, 0.3);
-
-my $chord = combine_gen($c, $e, $g);
-
-play($chord);
-play($chord);
-play($chord);
-exit;
-
-my $a3 = 220; # Frequency in Hertz (eg: 440 Hz is 'A' note)
-my $b3 = 246.94;
-my $a4 = 440; # Frequency in Hertz (eg: 440 Hz is 'A' note)
-my $b4 = 523.25;
-
-my $song = "E4 D4 C4 D4 E4 E4 E4 D4 D4 D4 E4 E4 E4 E4 D4 C4 D4 E4 E4 E4 E4 D4 D4 E4 D4 C4";
-
-map { beep($_, 0.2) }
-map { $note{$_} }
-split ' ', $song;
-
-while(1) {
-  map { beep($_, 0.1) }
-    $a4,
-    $b4,
-    $a4,
-    $b4,
-    $a3,
-    $b3,
-    $a3,
-    $b3;
-  
-  # beep($a3,0.1);
-  # beep($b3,0.1);
-  # beep($a3,0.1);
-  # beep($b3,0.1);
-  # beep($a3,0.1);
-  # beep($b3,0.1);
+sub sequence_gen {
+  my (@gens) = @_;
+  return generator {
+    my (@g) = (@gens); # make this reusable
+    while(@g) {
+      my $sample = $g[0]->();
+      if(defined $sample) {
+        yield($sample);
+      } else {
+        shift @g;
+      }
+    }
+    yield(undef);
+  };
 }
+
+my $c = sine_gen($note{'C4'}, 0.5, 0.3);
+my $e = sine_gen($note{'E4'}, 0.5, 0.3);
+my $g = sine_gen($note{'G4'}, 0.5, 0.3);
+my $seq = sequence_gen($c, $e, $g);
+play($seq);
+play($seq);
+
+# we can re-use $c, $e, and $g
+my $chord = combine_gen($c, $e, $g);
+play($chord);
+play($chord);
 
