@@ -332,6 +332,35 @@ my @notes_long = map { note_gen($_, 0.01, 1, 0.3) } ('C4', 'E4', 'G4');
   # )
 # );
 
+sub segment_gen {
+  my $notes = shift;
+  my @notes = split ' ', $notes;
+  my @gens = ();
+  my $base = 0.5;
+  foreach my $note (@notes) { 
+    my ($n, $f) = split '/', $note;
+    $f ||= 1;
+    my $l = $base / $f;
+    unless( $n =~ /\d$/ ) {
+      $n .= '4';
+    }
+    if($n =~ /^R/) {
+      push @gens, rest_gen($l);
+    } else {
+      push @gens, note_gen($n, 0.01, $l, 0.01);
+    }
+  }
+  sequence_gen(@gens);
+}
+
+play(
+  combine_gen(
+    segment_gen('E D C D E E E R D D D R E E E R E D C D E E E/2 E D D E D C'),
+    segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
+    # note_gen('C2', 2, 0, 2),
+  )
+);
+
 play(
   combine_gen(
     sequence_gen(
