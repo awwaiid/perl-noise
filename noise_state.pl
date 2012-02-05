@@ -174,7 +174,7 @@ sub play {
   my $gen = shift;
   while (1) {
     my $raw_sample = '';
-    for(1..100000) {
+    for(1..1000) {
     # while(1) {
       my $sample = $gen->();
       if($sample > 1 || $sample < -1) {
@@ -191,7 +191,6 @@ sub play {
     }
     # print "Sending sample block...";
     $stream->write($raw_sample);
-    exit;
     # print "sent.\n";
   }
 }
@@ -226,6 +225,63 @@ sub sine_gen {
     return $sample;
   };
 }
+
+sub silence_gen {
+  return sub {
+    return 0;
+  };
+}
+
+sub noise_gen {
+  my ($freq, $volume) = @_;
+  return sub {
+    return $volume * (rand(2) - 1);
+  };
+}
+
+sub saw_gen {
+  my ($freq, $volume) = @_;
+  $volume ||= 0.9;
+  my $sample_count = (1 / $freq) * $sample_rate;
+  return sub {
+    state $current_sample //= 0;
+    state $current_freq //= 0;
+    state $direction = 1;
+    my $sample = $current_freq;
+    $current_freq += $direction * (4 / $sample_count);
+    if($current_freq >= 1) {
+      $current_freq = 1;
+      $direction = -1;
+    }
+    if($current_freq <= -1) {
+      $current_freq = -1;
+      $direction = 1;
+    }
+    return $current_freq * $volume;
+  };
+}
+
+sub square_gen {
+  my ($freq, $volume) = @_;
+  $volume ||= 0.9;
+  my $sample_count = (1 / $freq) * $sample_rate;
+  return sub {
+    state $current_sample //= 0;
+    state $current_freq //= 0;
+    state $direction = 1;
+    $current_sample++;
+    if($current_sample > $sample_count) {
+      $current_sample = 1;
+    }
+    if($current_sample < $sample_count / 2) {
+      return $volume;
+    }
+    if($current_sample >= $sample_count / 2) {
+      return $volume * -1;
+    }
+  };
+}
+
 
 sub envelope_gen {
   my ($gen, $attack, $sustain, $release) = @_;
@@ -308,10 +364,18 @@ sub note_gen {
   $sustain //= 0.1;
   $release //= 0.1;
   my $c = sine_gen($note{$note}, 0.1);
+  # my $c = saw_gen($note{$note}, 0.1);
+  # my $c = square_gen($note{$note}, 0.1);
+  # my $c = noise_gen($note{$note}, 0.1);
   $c = envelope_gen( $c, $attack, $sustain, $release);
   return $c;
 }
 
+sub rest_gen {
+  my ($length) = @_;
+  my $silence = silence_gen();
+  return envelope_gen( $silence, 0, $length, 0);
+}
 
 # my $c = sine_gen($note{'C4'}, 0.5, 0.3);
 # $c = envelope_gen( $c, 0.1, 0.1, 0.1 );
@@ -356,10 +420,24 @@ my $chord =
 my @notes = map { note_gen($_) } ('C5', 'E5', 'G5');
 my @notes_long = map { note_gen($_, 0.01, 1, 0.3) } ('C4', 'E4', 'G4');
 
+# play(
+  # combine_gen(
+    # sequence_gen( @notes ),
+    # combine_gen( @notes_long )
+  # )
+# );
+
 play(
   combine_gen(
-    sequence_gen( @notes ),
-    combine_gen( @notes_long )
+    sequence_gen(
+      (map { note_gen($_) } ('C5', 'E5', 'G5')),
+      rest_gen(0.3)
+    ),
+    combine_gen(
+      map { note_gen($_, 0.01, 1, 0.3) } ('C4', 'E4', 'G4')
+    ),
+    note_gen('C2', 2, 0, 2),
+    # sequence_gen( map { note_gen($_) } ('C2') ),
   )
 );
 
