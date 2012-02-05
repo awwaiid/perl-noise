@@ -6,9 +6,9 @@ use Coro::Generator;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
 
-# my $sample_rate = 48000;
+my $sample_rate = 48000;
 # my $sample_rate = 44100;
-my $sample_rate = 24000;
+# my $sample_rate = 24000;
 my $time_step = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
 my $pi = 3.14159265358979323846;
 
@@ -217,13 +217,13 @@ sub beep_gen {
 sub sine_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
-  my $current_sample = 0;
-  return generator {
+  return sub {
+    state $current_sample //= 0;
     my $sample =
       sin( $time_step * $pi * $current_sample * 2 * $freq )
       * $volume;
-    yield($sample);
     $current_sample++;
+    return $sample;
   };
 }
 
@@ -234,50 +234,71 @@ sub envelope_gen {
   my $sustain_sample_count = $sustain * $sample_rate;
   my $release_sample_count = $release * $sample_rate;
 
-  return generator {
-    for my $s (1..$attack_sample_count) {
-      my $scale = $s / $attack_sample_count;
-      yield($gen->() * $scale);
+  return sub {
+    state $mode //= 'attack';
+    state $current_sample //= 0;
+    $current_sample++;
+    if($mode eq 'attack') {
+      if($current_sample > $attack_sample_count) {
+        $current_sample = 1;
+        $mode = 'sustain';
+      } else {
+        my $scale = $current_sample / $attack_sample_count;
+        return $gen->() * $scale;
+      }
     }
-    for my $s (1..$sustain_sample_count) {
-      yield($gen->());
+    if($mode eq 'sustain') {
+      if($current_sample > $sustain_sample_count) {
+        $current_sample = 1;
+        $mode = 'release';
+      } else {
+        return $gen->();
+      }
     }
-    for my $s (1..$release_sample_count) {
-      my $scale = 1 - ($s / $release_sample_count);
-      yield($gen->() * $scale);
+    if($mode eq 'release') {
+      if($current_sample > $release_sample_count) {
+        $current_sample = 1;
+        $mode = 'attack';
+        return undef;
+      } else {
+        my $scale = 1 - ($current_sample / $release_sample_count);
+        return $gen->() * $scale;
+      }
     }
-    yield(undef);
   };
 }
 
 sub combine_gen {
   my (@gens) = @_;
-  return generator {
-    my (@g) = @gens;
+  return sub {
+    state @g;
+    (@g) = @gens unless @g;
     my @samples = map { $_->() } @g;
     if(none { defined } @samples) {
-      yield(undef); # we're done
+      (@g) = @gens;
+      return undef;
     } else {
       my $sample = sum @samples;
-      # print "sum: $sample\n";
-      yield($sample);
+      return $sample;
     }
   };
 }
 
 sub sequence_gen {
   my (@gens) = @_;
-  return generator {
-    my (@g) = (@gens); # make this reusable
+  return sub {
+    state @g;
+    (@g) = @gens unless @g;
     while(@g) {
       my $sample = $g[0]->();
       if(defined $sample) {
-        yield($sample);
+        return $sample;
       } else {
         shift @g;
       }
     }
-    yield(undef);
+    (@g) = @gens;
+    return undef;
   };
 }
 
