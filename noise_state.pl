@@ -2,7 +2,6 @@
 
 use v5.14;
 use Audio::PortAudio;
-use Coro::Generator;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
 
