@@ -304,19 +304,23 @@ sub segment_gen {
 }
 
 play(
+  envelope_gen(
   combine_gen(
     segment_gen('E D C D E E E R D D D R E E E R E D C D E E E/2 E D D E D C'),
     segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
     # note_gen('C2', 2, 0, 2),
+  ),
+  0,10,0
   )
 );
 
 play(
   combine_gen(
     sequence_gen(
-      (map { note_gen($_) } ('C5', 'E5', 'G5')),
+      (map { note_gen($_) } ('C5', 'E5', 'G5', 'E5')),
       rest_gen(0.3)
     ),
+    # A chord!
     combine_gen(
       map { note_gen($_, 0.01, 1, 0.3) } ('C4', 'E4', 'G4')
     ),
