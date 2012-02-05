@@ -282,56 +282,6 @@ sub rest_gen {
   return envelope_gen( $silence, 0, $length, 0);
 }
 
-# my $c = sine_gen($note_freq{'C4'}, 0.5, 0.3);
-# $c = envelope_gen( $c, 0.1, 0.1, 0.1 );
-# my $e = sine_gen($note_freq{'E4'}, 0.5, 0.3);
-# my $g = sine_gen($note_freq{'G4'}, 0.5, 0.3);
-
-# my $c = note_gen('C4');
-# my $e = note_gen('E4');
-# my $g = note_gen('G4');
-# my $seq = sequence_gen($c, $e, $g);
-# play($seq);
-# play($seq);
-
-# we can re-use $c, $e, and $g
-#my $chord = combine_gen($c, $e, $g);
-# my $chord =
-  # envelope_gen(
-    # combine_gen(
-      # #map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4', 'G4')
-      # map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4')
-    # ),
-    # 0.1, 0.1, 0.1
-  # );
-my $chord =
-  envelope_gen(
-    combine_gen(
-      map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4', 'G4')
-      # map { beep_gen($note_freq{$_}, 0.5, 0.3) } ('C4', 'E4', 'G4')
-    ),
-    0.001, 1, 1,
-  );
-# play($chord);
-# play($chord);
-
-# my $c = beep_gen($note_freq{'C4'}, 1, 0.3);
-# my $e = beep_gen($note_freq{'E4'}, 1, 0.3);
-# my $g = beep_gen($note_freq{'G4'}, 1, 0.3);
-# my $c = note_gen('C4');
-# my $e = note_gen('E4');
-# my $g = note_gen('G4');
-# my @notes = ($c, $e, $g);
-my @notes = map { note_gen($_) } ('C5', 'E5', 'G5');
-my @notes_long = map { note_gen($_, 0.01, 1, 0.3) } ('C4', 'E4', 'G4');
-
-# play(
-  # combine_gen(
-    # sequence_gen( @notes ),
-    # combine_gen( @notes_long )
-  # )
-# );
-
 sub segment_gen {
   my $notes = shift;
   my @notes = split ' ', $notes;
@@ -375,14 +325,3 @@ play(
   )
 );
 
-# my $c = beep_gen($note_freq{'C4'}, 1, 0.3);
-# my $e = beep_gen($note_freq{'E4'}, 1, 0.3);
-# my $g = beep_gen($note_freq{'G4'}, 1, 0.3);
-# my $seq = sequence_gen($c, $e, $g);
-# play($seq);
-# play($seq);
-
-# we can re-use $c, $e, and $g
-# my $chord = combine_gen($c, $e, $g);
-# play($chord);
-# play($chord);
