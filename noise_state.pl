@@ -268,10 +268,10 @@ sub note_gen {
   $attack //= 0.1;
   $sustain //= 0.1;
   $release //= 0.1;
-  my $c = sine_gen($note{$note}, 0.1);
-  # my $c = saw_gen($note{$note}, 0.1);
-  # my $c = square_gen($note{$note}, 0.1);
-  # my $c = noise_gen($note{$note}, 0.1);
+  # my $c = sine_gen($note_freq{$note}, 0.1);
+  my $c = saw_gen($note_freq{$note}, 0.1);
+  # my $c = square_gen($note_freq{$note}, 0.1);
+  # my $c = noise_gen($note_freq{$note}, 0.1);
   $c = envelope_gen( $c, $attack, $sustain, $release);
   return $c;
 }
@@ -282,10 +282,10 @@ sub rest_gen {
   return envelope_gen( $silence, 0, $length, 0);
 }
 
-# my $c = sine_gen($note{'C4'}, 0.5, 0.3);
+# my $c = sine_gen($note_freq{'C4'}, 0.5, 0.3);
 # $c = envelope_gen( $c, 0.1, 0.1, 0.1 );
-# my $e = sine_gen($note{'E4'}, 0.5, 0.3);
-# my $g = sine_gen($note{'G4'}, 0.5, 0.3);
+# my $e = sine_gen($note_freq{'E4'}, 0.5, 0.3);
+# my $g = sine_gen($note_freq{'G4'}, 0.5, 0.3);
 
 # my $c = note_gen('C4');
 # my $e = note_gen('E4');
@@ -299,25 +299,25 @@ sub rest_gen {
 # my $chord =
   # envelope_gen(
     # combine_gen(
-      # #map { sine_gen($note{$_}, 0.3) } ('C4', 'E4', 'G4')
-      # map { sine_gen($note{$_}, 0.3) } ('C4', 'E4')
+      # #map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4', 'G4')
+      # map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4')
     # ),
     # 0.1, 0.1, 0.1
   # );
 my $chord =
   envelope_gen(
     combine_gen(
-      map { sine_gen($note{$_}, 0.3) } ('C4', 'E4', 'G4')
-      # map { beep_gen($note{$_}, 0.5, 0.3) } ('C4', 'E4', 'G4')
+      map { sine_gen($note_freq{$_}, 0.3) } ('C4', 'E4', 'G4')
+      # map { beep_gen($note_freq{$_}, 0.5, 0.3) } ('C4', 'E4', 'G4')
     ),
     0.001, 1, 1,
   );
 # play($chord);
 # play($chord);
 
-# my $c = beep_gen($note{'C4'}, 1, 0.3);
-# my $e = beep_gen($note{'E4'}, 1, 0.3);
-# my $g = beep_gen($note{'G4'}, 1, 0.3);
+# my $c = beep_gen($note_freq{'C4'}, 1, 0.3);
+# my $e = beep_gen($note_freq{'E4'}, 1, 0.3);
+# my $g = beep_gen($note_freq{'G4'}, 1, 0.3);
 # my $c = note_gen('C4');
 # my $e = note_gen('E4');
 # my $g = note_gen('G4');
@@ -346,9 +346,9 @@ play(
   )
 );
 
-# my $c = beep_gen($note{'C4'}, 1, 0.3);
-# my $e = beep_gen($note{'E4'}, 1, 0.3);
-# my $g = beep_gen($note{'G4'}, 1, 0.3);
+# my $c = beep_gen($note_freq{'C4'}, 1, 0.3);
+# my $e = beep_gen($note_freq{'E4'}, 1, 0.3);
+# my $g = beep_gen($note_freq{'G4'}, 1, 0.3);
 # my $seq = sequence_gen($c, $e, $g);
 # play($seq);
 # play($seq);
