@@ -1,0 +1,9 @@
+This is just some fun I'm having at generating sound with perl.
+
+I tried using Coro::Generator, which made for some pretty clean
+code, but unfortunately the context switching cost is too high.
+Maybe it can be optimized.
+
+But I went ahead and re-implemented using perl 'state' variables...
+much less pretty but the performance seems great.
+
