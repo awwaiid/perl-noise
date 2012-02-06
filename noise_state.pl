@@ -100,24 +100,6 @@ sub play {
   }
 }
 
-sub beep_gen {
-  my ($freq, $length, $volume) = @_;
-  $volume ||= 0.9;
-  my $sample_count = $length * $sample_rate;
-  my $current_sample = 0;
-  return generator {
-    while ($current_sample < $sample_count) {
-      my $sample = sin( $time_step * $pi * $current_sample * 2 * $freq ) * (1 - ($current_sample / $sample_count)) * $volume;
-      yield($sample);
-      $current_sample++;
-    }
-    yield(undef);
-    $current_sample = 0; # begin again!
-    # print "Sending undef\n";
-    # yield(undef) while 1;
-  };
-}
-
 sub sine_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
