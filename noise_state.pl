@@ -121,8 +121,8 @@ sub beep_gen {
 sub sine_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
+  my $current_sample = 0;
   return sub {
-    state $current_sample //= 0;
     my $sample =
       sin( $time_step * $pi * $current_sample * 2 * $freq )
       * $volume;
@@ -148,10 +148,10 @@ sub saw_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
   my $sample_count = (1 / $freq) * $sample_rate;
+  my $current_sample = 0;
+  my $current_freq = 0;
+  my $direction = 1;
   return sub {
-    state $current_sample //= 0;
-    state $current_freq //= 0;
-    state $direction = 1;
     my $sample = $current_freq;
     $current_freq += $direction * (4 / $sample_count);
     if($current_freq >= 1) {
@@ -170,10 +170,9 @@ sub square_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
   my $sample_count = (1 / $freq) * $sample_rate;
+  my $current_sample = 0;
+  my $current_freq = 0;
   return sub {
-    state $current_sample //= 0;
-    state $current_freq //= 0;
-    state $direction = 1;
     $current_sample++;
     if($current_sample > $sample_count) {
       $current_sample = 1;
@@ -195,9 +194,9 @@ sub envelope_gen {
   my $sustain_sample_count = $sustain * $sample_rate;
   my $release_sample_count = $release * $sample_rate;
 
+  my $mode = 'attack';
+  my $current_sample = 0;
   return sub {
-    state $mode //= 'attack';
-    state $current_sample //= 0;
     $current_sample++;
     if($mode eq 'attack') {
       if($current_sample > $attack_sample_count) {
@@ -231,8 +230,8 @@ sub envelope_gen {
 
 sub combine_gen {
   my (@gens) = @_;
+  my @g;
   return sub {
-    state @g;
     (@g) = @gens unless @g;
     my @samples = map { $_->() } @g;
     if(none { defined } @samples) {
@@ -245,10 +244,19 @@ sub combine_gen {
   };
 }
 
+sub split_gen {
+  my ($gen, $count) = @_;
+  $count ||= 2;
+  return sub {
+    my $sample = $gen->();
+    return ($sample) x $count;
+  }
+}
+
 sub sequence_gen {
   my (@gens) = @_;
+  my @g;
   return sub {
-    state @g;
     (@g) = @gens unless @g;
     while(@g) {
       my $sample = $g[0]->();
