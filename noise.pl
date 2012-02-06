@@ -127,7 +127,7 @@ sub noise_gen {
   };
 }
 
-sub saw_gen {
+sub triangle_gen {
   my ($freq, $volume) = @_;
   $volume ||= 0.9;
   my $sample_count = (1 / $freq) * $sample_rate;
@@ -260,7 +260,7 @@ sub note_gen {
   $sustain //= 0.1;
   $release //= 0.1;
   # my $c = sine_gen($note_freq{$note}, 0.1);
-  my $c = saw_gen($note_freq{$note}, 0.1);
+  my $c = triangle_gen($note_freq{$note}, 0.1);
   # my $c = square_gen($note_freq{$note}, 0.1);
   # my $c = noise_gen($note_freq{$note}, 0.1);
   $c = envelope_gen( $c, $attack, $sustain, $release);
