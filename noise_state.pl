@@ -293,6 +293,31 @@ sub segment_gen {
   sequence_gen(@gens);
 }
 
+sub noise_gen {
+  my $formula = shift;
+  my $volume = shift || 0.1;
+  my $bits = shift || 8;
+  my $max = 2 ** $bits;
+  my $t = 0;
+  return sub {
+    $t++;
+    $_ = $t;
+    return (((
+      $formula->($t)
+    ) % $max - ($max/2))/($max/2)) * $volume
+  }
+}
+
+play(
+  envelope_gen(
+    noise_gen( sub {
+      # $_ * (42 & $_ >> 10)
+      (( $_ *( $_ >>8| $_ >>9)&46& $_ >>8))^( $_ & $_ >>13| $_ >>6)
+    }),
+    0.5, 20, 0.5
+  )
+);
+
 play(
   envelope_gen(
   combine_gen(
