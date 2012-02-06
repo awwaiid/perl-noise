@@ -293,7 +293,7 @@ sub segment_gen {
   sequence_gen(@gens);
 }
 
-sub noise_gen {
+sub formula_gen {
   my $formula = shift;
   my $volume = shift || 0.1;
   my $bits = shift || 8;
@@ -310,7 +310,7 @@ sub noise_gen {
 
 play(
   envelope_gen(
-    noise_gen( sub {
+    formula_gen( sub {
       # $_ * (42 & $_ >> 10)
       (( $_ *( $_ >>8| $_ >>9)&46& $_ >>8))^( $_ & $_ >>13| $_ >>6)
     }),
