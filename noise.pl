@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
-use v5.14;
+use v5.10;
+use strict;
 use Audio::PortAudio;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
