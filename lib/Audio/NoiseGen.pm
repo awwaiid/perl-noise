@@ -68,8 +68,8 @@ our @EXPORT_OK = qw(
   $stream
   %note_freq
   init
-  gen_
   play
+  G
   sine_gen
   silence_gen
   noise_gen
@@ -83,9 +83,9 @@ our @EXPORT_OK = qw(
   rest_gen
   segment_gen
   formula_gen
-  G
   limit_gen
   amp_gen
+  oneshot_gen
 );
 
 our %EXPORT_TAGS = (
@@ -357,6 +357,18 @@ sub sequence_gen {
   };
 }
 
+sub oneshot_gen {
+  my $gen = shift;
+  sub {
+    my $sample = $gen->();
+    if(!defined $sample) {
+      $gen = silence_gen();
+      $sample = $gen->();
+    }
+    return $sample;
+  }
+}
+
 # Plays a note through an envelope
 sub note_gen {
   my $params = generalize({
@@ -388,7 +400,9 @@ sub rest_gen {
 
 sub segment_gen {
   my $notes = shift;
-  my @notes = split ' ', $notes;
+  $notes =~ s/^\s+//;
+  $notes =~ s/\s+$//;
+  my @notes = split /\s+/, $notes;
   my @gens = ();
   my $base = 0.5;
   foreach my $note (@notes) { 
@@ -417,7 +431,7 @@ sub formula_gen {
     bits        => 8,
     sample_rate => 8000,
   }, \@_ );
-  my $formula = $params->{formula};
+  my $formula = shift;
   my $formula_increment = $params->{sample_rate}->() / $sample_rate;
   my $max = 2 ** $params->{bits}->();
   my $t = 0;
