@@ -8,7 +8,7 @@ use List::MoreUtils qw( none );
 
 my $sample_rate = 48000;
 # my $sample_rate = 44100;
-# my $sample_rate = 24000;
+# my $sample_rate = 8000;
 my $time_step = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
 my $pi = 3.14159265358979323846;
 
@@ -92,7 +92,8 @@ sub play {
         $stream->write($raw_sample);
         return;
       }
-        
+
+      # $sample = int($sample * 128)/128;
       $raw_sample .= pack "f*", $sample;
     }
     # print "Sending sample block...";
@@ -259,8 +260,8 @@ sub note_gen {
   $attack //= 0.1;
   $sustain //= 0.1;
   $release //= 0.1;
-  # my $c = sine_gen($note_freq{$note}, 0.1);
-  my $c = triangle_gen($note_freq{$note}, 0.1);
+  my $c = sine_gen($note_freq{$note}, 0.1);
+  # my $c = triangle_gen($note_freq{$note}, 0.1);
   # my $c = square_gen($note_freq{$note}, 0.1);
   # my $c = noise_gen($note_freq{$note}, 0.1);
   $c = envelope_gen( $c, $attack, $sustain, $release);
@@ -298,37 +299,67 @@ sub formula_gen {
   my $formula = shift;
   my $volume = shift || 0.1;
   my $bits = shift || 8;
+  my $formula_sample_rate = shift || 8000;
+  my $formula_increment = $formula_sample_rate / $sample_rate;
   my $max = 2 ** $bits;
   my $t = 0;
   return sub {
-    $t++;
-    $_ = $t;
+    $t += $formula_increment;
+    local $_ = int $t;
     return (((
-      $formula->($t)
+      $formula->(int $t)
     ) % $max - ($max/2))/($max/2)) * $volume
   }
 }
 
-play(
-  envelope_gen(
-    formula_gen( sub {
-      # $_ * (42 & $_ >> 10)
-      (( $_ *( $_ >>8| $_ >>9)&46& $_ >>8))^( $_ & $_ >>13| $_ >>6)
-    }),
-    0.5, 20, 0.5
-  )
-);
 
-play(
-  envelope_gen(
-  combine_gen(
-    segment_gen('E D C D E E E R D D D R E E E R E D C D E E E/2 E D D E D C'),
-    segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
-    # note_gen('C2', 2, 0, 2),
-  ),
-  0,10,0
-  )
-);
+# play(
+  # sequence_gen(
+    # envelope_gen( sine_gen(440), 0, 1, 0 ),
+    # # envelope_gen( triangle_gen(440), 0, 1, 0 ),
+    # # envelope_gen( square_gen(440), 0, 1, 0 ),
+    # # envelope_gen( sine_gen(440), 0, 1, 0 ),
+    # # envelope_gen( triangle_gen(440), 0, 1, 0 ),
+    # # envelope_gen( square_gen(440), 0, 1, 0 ),
+  # )
+  # # triangle_gen(440)
+  # # square_gen(440)
+# );
+
+# exit;
+
+# play(
+  # envelope_gen(
+    # formula_gen( sub {
+      # # $_ * (42 & $_ >> 10)
+      # (( $_ *( $_ >>8| $_ >>9)&46& $_ >>8))^( $_ & $_ >>13| $_ >>6)
+    # }),
+    # 0.5, 20, 0.5
+  # )
+# );
+# play(
+      # formula_gen( sub {
+        # $_ * (2 ** 23)
+      # }, 0.1, 32, 48000),
+# );
+
+# play(
+  # envelope_gen(
+    # combine_gen(
+      # segment_gen('E D C D E E E R D D D R E E E R E D C D E E E/2 E D D E D C'),
+      # # segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
+      # # formula_gen( sub {
+        # # $_ * (42 & $_ >> 10)
+      # # }),
+      # # formula_gen( sub {
+        # # ( $_ *( $_ >>8| $_ >>9)&46& $_ >>8)^( $_ & $_ >>13| $_ >>6)
+      # # }),
+    # ),
+    # 0, 10, 0
+  # )
+# );
+
+# exit;
 
 play(
   combine_gen(
@@ -345,3 +376,6 @@ play(
   )
 );
 
+# 'A E D E'
+# * 'E F G A'
+# * sub { $_ * ( 42 * $_ >> 10) }
