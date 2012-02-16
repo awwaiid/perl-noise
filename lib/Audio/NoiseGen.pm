@@ -1,5 +1,7 @@
 package Audio::NoiseGen;
 
+# ABSTRACT: Helps you generate (structured) noise
+
 use v5.10;
 use warnings;
 use parent 'Exporter';
@@ -73,6 +75,7 @@ our @EXPORT_OK = qw(
   sine_gen
   silence_gen
   noise_gen
+  white_noise_gen
   triangle_gen
   square_gen
   envelope_gen
@@ -83,7 +86,7 @@ our @EXPORT_OK = qw(
   rest_gen
   segment_gen
   formula_gen
-  limit_gen
+  hardlimit_gen
   amp_gen
   oneshot_gen
 );
@@ -185,12 +188,22 @@ sub sine_gen {
   };
 }
 
-sub limit_gen {
+sub hardlimit_gen {
   my $params = generalize({
     level => 1,
   }, \@_ );
   my $gen = shift;
-  return $gen;
+  return sub {
+    my $sample = $gen->();
+    my $level = $params->{level}->();
+    if($sample > $level) {
+      return $level;
+    }
+    if($sample < -1*$level) {
+      return -1 * $level;
+    }
+    return $sample;
+  }
 }
 
 sub amp_gen {
@@ -213,6 +226,24 @@ sub silence_gen {
 }
 
 sub noise_gen {
+  my $params = generalize({
+    delta => 0.01,
+  }, \@_ );
+  my $sample = 0;
+  return sub {
+    my $change = int(rand(2)) > 1 ? 1 : -1;
+    $sample += $change * $params->{delta}->();
+    if($sample > 1) {
+      $sample = 1;
+    }
+    if($sample < -1) {
+      $sample = -1;
+    }
+    return $sample;
+  };
+}
+
+sub white_noise_gen {
   return sub {
     return (rand(2) - 1);
   };
