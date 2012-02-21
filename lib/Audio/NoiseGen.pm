@@ -194,7 +194,7 @@ my $mon = 0;
 sub play {
   my %params = generalize( @_ );
   my $gen = $params{gen};
-  my $filename = $params{filename};
+  my $filename = $params{filename}->();
   # sox -r 48k -e floating-point -b 32 out.raw out.wav
   my $file;
   if($filename) {
