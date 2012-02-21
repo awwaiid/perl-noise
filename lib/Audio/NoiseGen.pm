@@ -1,13 +1,63 @@
 package Audio::NoiseGen;
 
-# ABSTRACT: Helps you generate (structured) noise
-
 use v5.10;
 use warnings;
 use parent 'Exporter';
 use Audio::PortAudio;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
+
+=head1 NAME
+
+Audio::NoiseGen - Unit Generator Based Sound Synthesizer
+
+=head1 SYNOPSIS
+
+  use Audio::NoiseGen ':all';
+
+  # Connect to your sound engine/hardware
+  Audio::NoiseGen::init();
+
+  play(
+    envelope_gen(
+      { attack => 0.2, sustain => 14.5, release => 0.2 },
+      combine_gen(
+        segment_gen('
+          E D C D
+          E E E R
+          D D D R
+          E E E R
+          E D C D
+          E E E/2 E
+          D D E D C
+        '),
+        segment_gen('A2 R R R'),
+        segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
+      ),
+    )
+  );
+
+=head1 DESCRIPTION
+
+"Unit Generators" have long been a method to synthesize digital sound (music, dare I say). This module provides a suite of such generators. You first create an instance of a generator, and then each time that instance is invoked it returns a sample.
+
+=head1 PACKAGE VARIABLES
+
+These variables can be exported if you want. They are used by some of the generators to help calculate things like timing.
+
+=over 4
+
+=item * C<$sample_rate> - samples/second sent to soundcard
+
+=item * C<$time_step> - 1/$sample_rate to ease calculations
+
+=item * C<$pi> - Er.... pi :)
+
+=item * C<%note_freq> - map of note names to frequencies
+
+=back
+
+=cut
 
 our ($sample_rate, $time_step, $stream);
 my $pi = 3.14159265358979323846;
@@ -89,11 +139,21 @@ our @EXPORT_OK = qw(
   hardlimit_gen
   amp_gen
   oneshot_gen
+  lowpass_gen
+  highpass_gen
 );
 
 our %EXPORT_TAGS = (
   all => [ @EXPORT_OK ]
 );
+
+=head1 INITIALIZATION AND PLAY
+
+=head2 init($api, $device, $sample_rate)
+
+This sets up our L<Audio::PortAudio> interface. All parameters are optional, and without any you will get the default provided by PortAudio.
+
+=cut
 
 sub init {
   my $api = shift || Audio::PortAudio::default_host_api();
@@ -119,6 +179,14 @@ sub db {
   my $sample = shift;
   return (20 * log10(abs($sample)+0.00000001));
 }
+
+=head2 play($gen, $filename)
+
+C<$filename> is optional.
+
+Invokes the C<$gen> and sends the resulting samples to the output device (soundcard).
+
+=cut
 
 # Play a sequence until we get an undef
 $mon = 0;
@@ -174,6 +242,14 @@ sub generalize {
   }
   return $params;
 }
+
+=head1 UNIT GENERATORS
+
+=head2 sine_gen({ freq => 440 })
+
+Generates a sine-wave.
+
+=cut
 
 sub sine_gen {
   my $params = generalize({
@@ -474,6 +550,63 @@ sub formula_gen {
     ) % $max - ($max/2))/($max/2))
   }
 }
+
+ # Return RC low-pass filter output samples, given input samples,
+ # time interval dt, and time constant RC
+ # function lowpass(real[0..n] x, real dt, real RC)
+   # var real[0..n] y
+   # var real α = dt / (RC + dt)
+   # y[0] := x[0]
+   # for i from 1 to n
+       # y[i] = α * x[i] + (1-α) * y[i-1]
+       # OR y[i] = y[i-1] + α * (x[i] - y[i-1])
+   # return y
+
+sub lowpass_gen {
+  my $gen = shift;
+  my $rc = shift;
+  my $current_time = 0;
+  my $last_gen_sample = 0;
+  my $last_out_sample = 0;
+  sub {
+    my $gen_sample = $gen->();
+    $current_time += $time_step;
+    my $alpha = $current_time / ($rc + $current_time);
+    my $sample = $last_out_sample + $alpha * ($gen_sample - $last_out_sample);
+    $last_out_sample = $sample;
+    $last_gen_sample = $gen_sample;
+    return $sample;
+  }
+}
+
+
+ # // Return RC high-pass filter output samples, given input samples,
+ # // time interval dt, and time constant RC
+ # function highpass(real[0..n] x, real dt, real RC)
+   # var real[0..n] y
+   # var real α := RC / (RC + dt)
+   # y[0] := x[0]
+   # for i from 1 to n
+     # y[i] := α * y[i-1] + α * (x[i] - x[i-1])
+   # return y
+
+sub highpass_gen {
+  my $gen = shift;
+  my $rc = shift;
+  my $current_time = 0;
+  my $last_gen_sample = 0;
+  my $last_out_sample = 0;
+  sub {
+    my $gen_sample = $gen->();
+    $current_time += $time_step;
+    my $alpha = $rc / ($rc + $current_time);
+    my $sample = $alpha * $last_out_sample + $alpha * ($gen_sample - $last_gen_sample);
+    $last_out_sample = $sample;
+    $last_gen_sample = $gen_sample;
+    return $sample;
+  }
+}
+
 
 ######################################
 # Now let's pretend to be an object
