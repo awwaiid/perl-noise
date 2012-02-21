@@ -1,6 +1,7 @@
 package Audio::NoiseGen;
 
 use v5.10;
+use strict;
 use warnings;
 use parent 'Exporter';
 use Audio::PortAudio;
@@ -189,10 +190,11 @@ Invokes the C<$gen> and sends the resulting samples to the output device (soundc
 =cut
 
 # Play a sequence until we get an undef
-$mon = 0;
+my $mon = 0;
 sub play {
-  my $gen = shift;
-  my $filename = shift;
+  my %params = generalize( @_ );
+  my $gen = $params{gen};
+  my $filename = $params{filename};
   # sox -r 48k -e floating-point -b 32 out.raw out.wav
   my $file;
   if($filename) {
@@ -227,20 +229,16 @@ sub play {
   }
 }
 
+# Turn constants into generators
 sub generalize {
-  my $defaults = shift;
-  my $ops = shift;
-  my $params = {
-    %$defaults,
-    (ref $ops->[0] eq 'HASH' ? %{ shift @$ops } : ())
-  };
-  foreach my $name (keys %$params) {
-    unless(ref $params->{$name} eq 'CODE') {
-      my $val = $params->{$name};
-      $params->{$name} = sub { $val };
+  my %params = @_;
+  foreach my $name (keys %params) {
+    unless(ref $params{$name} eq 'CODE') {
+      my $val = $params{$name};
+      $params{$name} = sub { $val };
     }
   }
-  return $params;
+  return %params;
 }
 
 =head1 UNIT GENERATORS
@@ -252,26 +250,21 @@ Generates a sine-wave.
 =cut
 
 sub sine_gen {
-  my $params = generalize({
-    freq => 440
-  }, \@_ );
+  my %params = generalize( freq => 440, @_ );
 
   my $angle = 0;
   return sub {
     my $sample = sin($angle);
-    $angle += 2 * $pi * $time_step * $params->{freq}->();
+    $angle += 2 * $pi * $time_step * $params{freq}->();
     return $sample;
   };
 }
 
 sub hardlimit_gen {
-  my $params = generalize({
-    level => 1,
-  }, \@_ );
-  my $gen = shift;
+  my %params = generalize( level => 1, @_ );
   return sub {
-    my $sample = $gen->();
-    my $level = $params->{level}->();
+    my $sample = $params{gen}->();
+    my $level = $params{level}->();
     if($sample > $level) {
       return $level;
     }
@@ -283,14 +276,11 @@ sub hardlimit_gen {
 }
 
 sub amp_gen {
-  my $params = generalize({
-    amount => 1,
-  }, \@_ );
-  my $gen = shift;
+  my %params = generalize( amount => 1, @_ );
   return sub {
-    my $sample = $gen->();
+    my $sample = $params{gen}->();
     defined $sample
-      ? $sample * $params->{amount}->()
+      ? $sample * $params{amount}->()
       : undef;
   }
 }
@@ -302,13 +292,11 @@ sub silence_gen {
 }
 
 sub noise_gen {
-  my $params = generalize({
-    delta => 0.01,
-  }, \@_ );
+  my %params = generalize( delta => 0.01, @_ );
   my $sample = 0;
   return sub {
     my $change = int(rand(2)) > 1 ? 1 : -1;
-    $sample += $change * $params->{delta}->();
+    $sample += $change * $params{delta}->();
     if($sample > 1) {
       $sample = 1;
     }
@@ -326,14 +314,12 @@ sub white_noise_gen {
 }
 
 sub triangle_gen {
-  my $params = generalize({
-    freq => 440
-  }, \@_ );
+  my %params = generalize( freq => 440, @_ );
   my $current_sample = 0;
   my $current_freq = 0;
   my $direction = 1;
   return sub {
-    my $sample_count = (1 / $params->{freq}->()) * $sample_rate;
+    my $sample_count = (1 / $params{freq}->()) * $sample_rate;
     my $sample = $current_freq;
     $current_freq += $direction * (4 / $sample_count);
     if($current_freq >= 1) {
@@ -349,13 +335,11 @@ sub triangle_gen {
 }
 
 sub square_gen {
-  my $params = generalize({
-    freq => 440
-  }, \@_ );
+  my %params = generalize( freq => 440, @_ );
   my $current_sample = 0;
   my $current_freq = 0;
   return sub {
-    my $sample_count = (1 / $params->{freq}->()) * $sample_rate;
+    my $sample_count = (1 / $params{freq}->()) * $sample_rate;
     $current_sample++;
     if($current_sample > $sample_count) {
       $current_sample = 1;
@@ -371,16 +355,16 @@ sub square_gen {
 
 
 sub envelope_gen {
-  my $params = generalize({
+  my %params = generalize(
     attack => 0,
     sustain => 0,
     release => 0,
-  }, \@_ );
-  my $gen = shift;
+    @_
+  );
 
-  my $attack_sample_count  = $params->{attack}->()  * $sample_rate;
-  my $sustain_sample_count = $params->{sustain}->() * $sample_rate;
-  my $release_sample_count = $params->{release}->() * $sample_rate;
+  my $attack_sample_count  = $params{attack}->()  * $sample_rate;
+  my $sustain_sample_count = $params{sustain}->() * $sample_rate;
+  my $release_sample_count = $params{release}->() * $sample_rate;
 
   my $mode = 'attack';
   my $current_sample = 0;
@@ -392,7 +376,7 @@ sub envelope_gen {
         $mode = 'sustain';
       } else {
         my $scale = $current_sample / $attack_sample_count;
-        return $gen->() * $scale;
+        return $params{gen}->() * $scale;
       }
     }
     if($mode eq 'sustain') {
@@ -400,7 +384,7 @@ sub envelope_gen {
         $current_sample = 1;
         $mode = 'release';
       } else {
-        return $gen->();
+        return $params{gen}->();
       }
     }
     if($mode eq 'release') {
@@ -410,15 +394,15 @@ sub envelope_gen {
         return undef;
       } else {
         my $scale = 1 - ($current_sample / $release_sample_count);
-        return $gen->() * $scale;
+        return $params{gen}->() * $scale;
       }
     }
   };
 }
 
 sub combine_gen {
-  my $params = generalize({ }, \@_ );
-  my (@gens) = @_;
+  my %params = generalize(@_);
+  my @gens = @{ $params{gens}->() };
   my @g;
   return sub {
     (@g) = @gens unless @g;
@@ -435,19 +419,16 @@ sub combine_gen {
 }
 
 sub split_gen {
-  my $params = generalize({
-    count => 2,
-  }, \@_ );
-  my ($gen) = @_;
+  my %params = generalize( count => 2, @_ );
   return sub {
-    my $sample = $gen->();
-    return ($sample) x $params->{count}->();
+    my $sample = $params{gen}->();
+    return ($sample) x $params{count}->();
   }
 }
 
 sub sequence_gen {
-  my $params = generalize({ }, \@_ );
-  my (@gens) = @_;
+  my %params = generalize( @_ );
+  my @gens = @{ $params{gens}->() };
   my @g;
   return sub {
     (@g) = @gens unless @g;
@@ -465,12 +446,13 @@ sub sequence_gen {
 }
 
 sub oneshot_gen {
-  my $gen = shift;
+  my %params = generalize( @_ );
+  my $gen = $params{gen};
   sub {
-    my $sample = $gen->();
+    my $sample = $params{gen}->();
     if(!defined $sample) {
       $gen = silence_gen();
-      $sample = $gen->();
+      $sample = $params{gen}->();
     }
     return $sample;
   }
@@ -478,18 +460,19 @@ sub oneshot_gen {
 
 # Plays a note through an envelope
 sub note_gen {
-  my $params = generalize({
+  my %params = generalize(
     note    => 'A4',
     gen     => \&triangle_gen,
     sustain => 0.1,
-  }, \@_ );
+    @_
+  );
 
   my ($c, $e);
   return sub {
-    $c ||= $params->{gen}->({
-      freq => $note_freq{$params->{note}->()}
-    });
-    $e ||= envelope_gen( $params, $c );
+    $c ||= $params{gen}->(
+      freq => $note_freq{$params{note}->()}
+    );
+    $e ||= envelope_gen( %params, gen => $c );
     my $sample = $e->();
     if(! defined $sample) {
       undef $c;
@@ -500,13 +483,16 @@ sub note_gen {
 }
 
 sub rest_gen {
-  my ($length) = @_;
+  my %params = generalize( length => 0, @_ );
   my $silence = silence_gen();
-  return envelope_gen( { sustain => $length }, $silence );
+  return envelope_gen( sustain => $params{length}, gen => $silence );
 }
 
 sub segment_gen {
-  my $notes = shift;
+  my %params = generalize( @_ );
+  use Data::Dumper;
+  print "params: " . Dumper(\%params);
+  my $notes = $params{notes}->()->[0];
   $notes =~ s/^\s+//;
   $notes =~ s/\s+$//;
   my @notes = split /\s+/, $notes;
@@ -520,27 +506,28 @@ sub segment_gen {
       $n .= '4';
     }
     if($n =~ /^R/) {
-      push @gens, rest_gen($l);
+      push @gens, rest_gen(length => $l);
     } else {
-      push @gens, note_gen({
+      push @gens, note_gen(
         note    => $n,
         attack  => 0.01,
         sustain => $l,
         release => 0.01
-      });
+      );
     }
   }
-  sequence_gen(@gens);
+  sequence_gen(gens => [@gens]);
 }
 
 sub formula_gen {
-  my $params = generalize({
+  my %params = generalize(
     bits        => 8,
     sample_rate => 8000,
-  }, \@_ );
-  my $formula = shift;
-  my $formula_increment = $params->{sample_rate}->() / $sample_rate;
-  my $max = 2 ** $params->{bits}->();
+    @_
+  );
+  my $formula = $params{formula};
+  my $formula_increment = $params{sample_rate}->() / $sample_rate;
+  my $max = 2 ** $params{bits}->();
   my $t = 0;
   return sub {
     $t += $formula_increment;
