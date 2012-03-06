@@ -2,13 +2,13 @@
 
 use strict;
 use Audio::NoiseGen ':all';
+
 Audio::NoiseGen::init();
 
-play(
-  envelope_gen(
-    { attack => 0.2, sustain => 14.5, decay => 0.2 },
-    combine_gen(
-      segment_gen('
+play( gen =>
+  envelope(attack => 0.2, sustain => 14.5, decay => 0.2, gen =>
+    combine(gens => [
+      segment(notes => '
         E D C D
         E E E R
         D D D R
@@ -17,9 +17,9 @@ play(
         E E E/2 E
         D D E D C
       '),
-      segment_gen('A2 R R R'),
-      segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
-    ),
-  )
+      segment(notes => 'A2 R R R'),
+      segment(notes => 'C3/2 E3/4 E3/4 C3/2 F3 R'),
+    ]),
+  ),
 );
 
