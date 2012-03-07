@@ -19,22 +19,25 @@ Audio::NoiseGen - Unit Generator Based Sound Synthesizer
   # Connect to your sound engine/hardware
   Audio::NoiseGen::init();
 
-  play(
-    envelope_gen(
-      { attack => 0.2, sustain => 14.5, release => 0.2 },
-      combine_gen(
-        segment_gen('
-          E D C D
-          E E E R
-          D D D R
-          E E E R
-          E D C D
-          E E E/2 E
-          D D E D C
-        '),
-        segment_gen('A2 R R R'),
-        segment_gen('C3/2 E3/4 E3/4 C3/2 F3 R'),
-      ),
+  play( gen =>
+    envelope(
+      attack => 0.2,
+      sustain => 14.5,
+      release => 0.2,
+      gen =>
+        combine(
+          segment(notes => '
+            E D C D
+            E E E R
+            D D D R
+            E E E R
+            E D C D
+            E E E/2 E
+            D D E D C
+          '),
+          segment(notes => 'A2 R R R'),
+          segment(notes => 'C3/2 E3/4 E3/4 C3/2 F3 R'),
+        ),
     )
   );
 
@@ -123,25 +126,25 @@ our @EXPORT_OK = qw(
   init
   play
   G
-  sine_gen
-  silence_gen
-  noise_gen
-  white_noise_gen
-  triangle_gen
-  square_gen
-  envelope_gen
-  combine_gen
-  split_gen
-  sequence_gen
-  note_gen
-  rest_gen
-  segment_gen
-  formula_gen
-  hardlimit_gen
-  amp_gen
-  oneshot_gen
-  lowpass_gen
-  highpass_gen
+  sine
+  silence
+  noise
+  white_noise
+  triangle
+  square
+  envelope
+  combine
+  split
+  sequence
+  note
+  rest
+  segment
+  formula
+  hardlimit
+  amp
+  oneshot
+  lowpass
+  highpass
 );
 
 our %EXPORT_TAGS = (
@@ -159,7 +162,8 @@ This sets up our L<Audio::PortAudio> interface. All parameters are optional, and
 sub init {
   my $api = shift || Audio::PortAudio::default_host_api();
   my $device = shift || $api->default_output_device;
-  $sample_rate = shift || 48000;
+  # $sample_rate = shift || 48000;
+  $sample_rate = shift || 20000;
   $time_step = (1/$sample_rate); # 2 * (1/48000) = 0.0000416666
   $stream = $device->open_write_stream(
     {
@@ -167,9 +171,17 @@ sub init {
     },
     $sample_rate,
     1000, # some sort of buffer size?
-    0
+    # 0
   );
 }
+
+# sub import {
+  # my $class = shift;
+  # # if(grep { /^:init$/ } @_) {
+    # # Audio::NoiseGen::init();
+  # # }
+  # $class->SUPER::import(@_);
+# }
 
 sub log10 {
   my $n = shift;
@@ -181,7 +193,7 @@ sub db {
   return (20 * log10(abs($sample)+0.00000001));
 }
 
-=head2 play($gen, $filename)
+=head2 play(gen => $gen, filename => $filename)
 
 C<$filename> is optional.
 
@@ -194,7 +206,7 @@ my $mon = 0;
 sub play {
   my %params = generalize( @_ );
   my $gen = $params{gen};
-  my $filename = $params{filename}->();
+  my $filename = $params{filename} && $params{filename}->();
   # sox -r 48k -e floating-point -b 32 out.raw out.wav
   my $file;
   if($filename) {
@@ -222,7 +234,12 @@ sub play {
         
       $raw_sample .= pack "f*", $sample;
     }
+      # unless $mon++ % 1000;
     # print "Sending sample block...";
+    my $write_available = $stream->write_available;
+    # printf "Buffer: %d\n", $write_available
+        # if $write_available < 1000;
+        # unless $mon++ % 100;
     $stream->write($raw_sample);
     print $file $raw_sample if $file;
     # print "sent.\n";
@@ -243,24 +260,25 @@ sub generalize {
 
 =head1 UNIT GENERATORS
 
-=head2 sine_gen({ freq => 440 })
+=head2 sine({ freq => 440 })
 
 Generates a sine-wave.
 
 =cut
 
-sub sine_gen {
+sub sine {
   my %params = generalize( freq => 440, @_ );
 
   my $angle = 0;
   return sub {
     my $sample = sin($angle);
-    $angle += 2 * $pi * $time_step * $params{freq}->();
+    my $freq = $params{freq}->() || 0;
+    $angle += 2 * $pi * $time_step * $freq;
     return $sample;
   };
 }
 
-sub hardlimit_gen {
+sub hardlimit {
   my %params = generalize( level => 1, @_ );
   return sub {
     my $sample = $params{gen}->();
@@ -275,7 +293,13 @@ sub hardlimit_gen {
   }
 }
 
-sub amp_gen {
+=head2 amp( amount => 0.5, gen => $g )
+
+Amplify the output of C<$g>. If amount is greather than 1 this will make it louder, less than one to make it quieter.
+
+=cut
+
+sub amp {
   my %params = generalize( amount => 1, @_ );
   return sub {
     my $sample = $params{gen}->();
@@ -285,13 +309,19 @@ sub amp_gen {
   }
 }
 
-sub silence_gen {
+=head2 silence()
+
+Just return silence forever.
+
+=cut
+
+sub silence {
   return sub {
     return 0;
   };
 }
 
-sub noise_gen {
+sub noise {
   my %params = generalize( delta => 0.01, @_ );
   my $sample = 0;
   return sub {
@@ -307,13 +337,25 @@ sub noise_gen {
   };
 }
 
-sub white_noise_gen {
+=head2 white_noise()
+
+Return random samples.
+
+=cut
+
+sub white_noise {
   return sub {
     return (rand(2) - 1);
   };
 }
 
-sub triangle_gen {
+=head2 triangle( freq => $freq )
+
+Triangle wave.
+
+=cut
+
+sub triangle {
   my %params = generalize( freq => 440, @_ );
   my $current_sample = 0;
   my $current_freq = 0;
@@ -334,12 +376,21 @@ sub triangle_gen {
   };
 }
 
-sub square_gen {
+
+=head2 square( freq => $freq )
+
+Square wave.
+
+=cut
+
+sub square {
   my %params = generalize( freq => 440, @_ );
   my $current_sample = 0;
   my $current_freq = 0;
   return sub {
-    my $sample_count = (1 / $params{freq}->()) * $sample_rate;
+    my $freq = $params{freq}->();
+    return 0 if ! defined $freq;
+    my $sample_count = (1 / $freq) * $sample_rate;
     $current_sample++;
     if($current_sample > $sample_count) {
       $current_sample = 1;
@@ -353,8 +404,17 @@ sub square_gen {
   };
 }
 
+=head2 envelope( gen => $g, ... )
 
-sub envelope_gen {
+Build up a simple envelope. So far this supports attack, sustain, and release (I need to implement decay).
+
+This will fade the volume up for $attack seconds (linear), keep it there for $sustain seconds, and then fade down for $release seconds (linear).
+
+Returns undef at the end of the release.
+
+=cut
+
+sub envelope {
   my %params = generalize(
     attack => 0,
     sustain => 0,
@@ -400,7 +460,15 @@ sub envelope_gen {
   };
 }
 
-sub combine_gen {
+=head2 combine( gens => [ ... ] )
+
+Plays each of the provided generators all at once.
+
+Once all the generators return undef, combine will return undef. Subsequent calls will start it over.
+
+=cut
+
+sub combine {
   my %params = generalize(@_);
   my @gens = @{ $params{gens}->() };
   my @g;
@@ -418,7 +486,7 @@ sub combine_gen {
   };
 }
 
-sub split_gen {
+sub split {
   my %params = generalize( count => 2, @_ );
   return sub {
     my $sample = $params{gen}->();
@@ -426,7 +494,13 @@ sub split_gen {
   }
 }
 
-sub sequence_gen {
+=head2 sequence( gens => [ ... ] )
+
+Play a list of generators, one after another. Plays the first generator until it returns undef, then goes on to the second, and so on. Returns undef when it completes the last generator in it's sequence, and then keeps returning undef after that.
+
+=cut
+
+sub sequence {
   my %params = generalize( @_ );
   my @gens = @{ $params{gens}->() };
   my @g;
@@ -445,34 +519,44 @@ sub sequence_gen {
   };
 }
 
-sub oneshot_gen {
+sub oneshot {
   my %params = generalize( @_ );
   my $gen = $params{gen};
   sub {
     my $sample = $params{gen}->();
     if(!defined $sample) {
-      $gen = silence_gen();
+      $gen = silence();
       $sample = $params{gen}->();
     }
     return $sample;
   }
 }
 
-# Plays a note through an envelope
-sub note_gen {
+=head2 note( note => 'C#' )
+
+Plays a named note, looking it up in %note_freq. Actually builds an envelope for the note, so it can take a subref 'instrument' to use for the actual sound.
+
+Note that 'instrument' isn't a generator, it is a generator-creator that will be passed a freq. The default is C<< \&sine >>. Tricky.
+
+You can also pass any of the evelope parameters. It defaults to zero attack and release, and 0.1 second sustain.
+
+=cut
+
+sub note {
   my %params = generalize(
     note    => 'A4',
-    gen     => \&triangle_gen,
+    # gen     => \&triangle,
+    # gen     => \&square,
+    instrument => \&sine,
     sustain => 0.1,
     @_
   );
-
   my ($c, $e);
   return sub {
-    $c ||= $params{gen}->(
+    $c ||= $params{instrument}->(
       freq => $note_freq{$params{note}->()}
     );
-    $e ||= envelope_gen( %params, gen => $c );
+    $e ||= envelope( %params, gen => $c );
     my $sample = $e->();
     if(! defined $sample) {
       undef $c;
@@ -482,44 +566,70 @@ sub note_gen {
   }
 }
 
-sub rest_gen {
+=head2 rest( length => 3 )
+
+Play silence for a fixed set of time, 'length', in seconds.
+
+=cut
+
+sub rest {
   my %params = generalize( length => 0, @_ );
-  my $silence = silence_gen();
-  return envelope_gen( sustain => $params{length}, gen => $silence );
+  my $silence = silence();
+  return envelope( sustain => $params{length}, gen => $silence );
 }
 
-sub segment_gen {
+=head2 segment( notes => 'A B C#' )
+
+Generate a sequence of notes by parsing the 'notes' param. Pretty minimal for now.
+
+=cut
+
+sub segment {
   my %params = generalize( @_ );
-  use Data::Dumper;
-  print "params: " . Dumper(\%params);
-  my $notes = $params{notes}->()->[0];
-  $notes =~ s/^\s+//;
-  $notes =~ s/\s+$//;
-  my @notes = split /\s+/, $notes;
-  my @gens = ();
-  my $base = 0.5;
-  foreach my $note (@notes) { 
-    my ($n, $f) = split '/', $note;
-    $f ||= 1;
-    my $l = $base / $f;
-    unless( $n =~ /\d$/ ) {
-      $n .= '4';
+  my @notes;
+  my $cur_gen;
+  my $last_sample;
+  return sub {
+    if(!@notes && ! defined $last_sample) {
+      my $notes = $params{notes}->();
+      $notes =~ s/^\s+//;
+      $notes =~ s/\s+$//;
+      push @notes, split(/\s+/, $notes);
     }
-    if($n =~ /^R/) {
-      push @gens, rest_gen(length => $l);
-    } else {
-      push @gens, note_gen(
-        note    => $n,
-        attack  => 0.01,
-        sustain => $l,
-        release => 0.01
-      );
+    if(! defined $last_sample && @notes) {
+      my $base = 0.5;
+      my $note = shift @notes;
+      my ($n, $f) = split '/', $note;
+      $f ||= 1;
+      my $l = $base / $f;
+      unless( $n =~ /\d$/ ) {
+        $n .= '4';
+      }
+      if($n =~ /^R/) {
+        $cur_gen = rest(length => $l);
+      } else {
+        $cur_gen = note(
+          note    => $n,
+          attack  => 0.01,
+          sustain => $l,
+          release => 0.01
+        );
+      }
     }
+    $last_sample = $cur_gen->();
+    return $last_sample || 0;
   }
-  sequence_gen(gens => [@gens]);
 }
 
-sub formula_gen {
+=head2 formula( formula => sub { $_*(42&$_>>10) } )
+
+Plays a formula. Takes 'formula', 'bits', and 'sample_rate'. 'bits' defaults to 8, 'sample_rate' defaults to 8000.
+
+Formula uses C<< $_ >> instead of 't', but is otherwise similar to what is described at L<http://countercomplex.blogspot.com/2011/10/algorithmic-symphonies-from-one-line-of.html>.
+
+=cut
+
+sub formula {
   my %params = generalize(
     bits        => 8,
     sample_rate => 8000,
@@ -549,19 +659,19 @@ sub formula_gen {
        # OR y[i] = y[i-1] + α * (x[i] - y[i-1])
    # return y
 
-sub lowpass_gen {
-  my $gen = shift;
-  my $rc = shift;
+sub lowpass {
+  my %params = generalize( @_ );
   my $current_time = 0;
-  my $last_gen_sample = 0;
+  my $last_sample = 0;
   my $last_out_sample = 0;
   sub {
-    my $gen_sample = $gen->();
+    my $gen_sample = $params{gen}->();
+    return undef if ! defined $gen_sample;
     $current_time += $time_step;
-    my $alpha = $current_time / ($rc + $current_time);
+    my $alpha = $current_time / ($params{rc}->() + $current_time);
     my $sample = $last_out_sample + $alpha * ($gen_sample - $last_out_sample);
     $last_out_sample = $sample;
-    $last_gen_sample = $gen_sample;
+    $last_sample = $gen_sample;
     return $sample;
   }
 }
@@ -577,19 +687,19 @@ sub lowpass_gen {
      # y[i] := α * y[i-1] + α * (x[i] - x[i-1])
    # return y
 
-sub highpass_gen {
-  my $gen = shift;
-  my $rc = shift;
+sub highpass {
+  my %params = generalize( @_ );
   my $current_time = 0;
-  my $last_gen_sample = 0;
+  my $last_sample = 0;
   my $last_out_sample = 0;
   sub {
-    my $gen_sample = $gen->();
+    my $gen_sample = $params{gen}->();
+    my $rc = $params{rc}->();
     $current_time += $time_step;
     my $alpha = $rc / ($rc + $current_time);
-    my $sample = $alpha * $last_out_sample + $alpha * ($gen_sample - $last_gen_sample);
+    my $sample = $alpha * $last_out_sample + $alpha * ($gen_sample - $last_sample);
     $last_out_sample = $sample;
-    $last_gen_sample = $gen_sample;
+    $last_sample = $gen_sample;
     return $sample;
   }
 }
@@ -609,9 +719,9 @@ sub new {
   my $gen = shift;
   if(!ref $gen) {
     print STDERR "segement '$gen'\n";
-    $gen = segment_gen($gen);
+    $gen = segment($gen);
   # } elsif(ref $gen eq 'CODE') {
-    # $gen = formula_gen($gen);
+    # $gen = formula($gen);
   }
   my $self = {
     gen => $gen,
@@ -622,14 +732,14 @@ sub new {
 
 sub m_seq {
   my ($self, $other, $swap) = @_;
-  my $s = sequence_gen($self->{gen}, $other->{gen});
+  my $s = sequence($self->{gen}, $other->{gen});
   return Audio::NoiseGen->new($s);
 }
 
 sub m_combine {
   my ($self, $other, $swap) = @_;
   print STDERR "combine!\n";
-  my $s = combine_gen($self->{gen}, $other->{gen});
+  my $s = combine($self->{gen}, $other->{gen});
   return Audio::NoiseGen->new($s);
 }
 
