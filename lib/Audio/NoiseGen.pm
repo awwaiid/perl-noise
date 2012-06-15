@@ -8,7 +8,7 @@ use Audio::PortAudio;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 =head1 NAME
 
