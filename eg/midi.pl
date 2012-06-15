@@ -17,7 +17,7 @@ MIDI::ALSA::client('Perl MIDI::ALSA client', 1, 1, 0);
 MIDI::ALSA::connectfrom(0, 20, 0) or die "Can't connect: $!";
 MIDI::ALSA::start() or die "Can't start: $!";
 
-sub midiplay_gen {
+sub midiplay {
   my (%params) = gen_params(@_);
 }
 
@@ -44,11 +44,11 @@ while (1) {
         my $note = Music::Note->new( $key, 'midinum' )->format('iso');
         print "note: [$note]\n";
 
-        play( segment_gen( $note ) );
+        play( gen => segment( notes => $note ) );
 
-        play gens => [
-          segment_gen note => $note;
-        ];
+        # play gens => [
+          # segment( note => $note)
+        # ];
 
         print "Played!\n";
 

@@ -84,7 +84,7 @@ sub looper {
     @output_samples = map { $_ || 0 } @output_samples;
     my $output_sample = sum @output_samples;
     return $output_sample;
-    return $output_sample * (1 / (scalar @output_samples));
+    return $output_sample * (1 / (scalar @output_samples)) * 0.8;
 
   }
 }
@@ -95,7 +95,7 @@ sub mousefreq {
   my ($x, $y) = (0, 0);
   return sub {
     # Don't update too often
-    unless($c++ % 1000) {
+    unless($c++ % 2000) {
       my ($new_x, $new_y) = split(' ', $xmousepos = `xmousepos`);
       # return $x if $x == $new_x;
       $x = $new_x;
@@ -115,13 +115,18 @@ sub mousevol {
   my ($x, $y) = (0, 0);
   return sub {
     # Don't update too often
-    unless($c++ % 1000) {
+    unless($c++ % 2000) {
       ($x, $y) = split(' ', $xmousepos);
       # print "mosevol: " . ($y * (1 / $max)) . "\n";
     }
     return $y * (1 / $max);
   }
 }
+
+# Let's do it with JACK
+# my @apis = Audio::PortAudio::host_apis();
+# my ($jack_api) = grep { $_->name =~ /JACK/ } @apis;
+# init($jack_api);
 
 init();
 
