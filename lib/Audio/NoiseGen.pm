@@ -8,6 +8,8 @@ use Audio::PortAudio;
 use List::Util qw( sum );
 use List::MoreUtils qw( none );
 
+our $VERSION = '0.02';
+
 =head1 NAME
 
 Audio::NoiseGen - Unit Generator Based Sound Synthesizer
