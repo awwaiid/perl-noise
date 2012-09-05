@@ -13,7 +13,7 @@ as a digital floating point it has a fixed number of bits. Old
 nintendos were 8-bit, for example. I typically work with 32-bit.
 
 The speed that you send these samples to a speaker is the "sample
-rate". For example, a CD uses 44,100 samples per second.
+rate". For example, a CD uses 44,100 samples per second. Which is fast, just so you know.
 
 So what we have to do is simple! Just generate these numbers and
 shove them out to the speaker at the correct speed.
